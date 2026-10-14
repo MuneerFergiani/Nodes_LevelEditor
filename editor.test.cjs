@@ -1,0 +1,42 @@
+// Run with: node Tools/LevelEditor/editor.test.cjs
+const fs=require('node:fs'), vm=require('node:vm'), assert=require('node:assert/strict');
+const html=fs.readFileSync(__dirname+'/index.html','utf8');
+const script=html.match(/<script>([\s\S]*?)<\/script>/)[1];
+new vm.Script(script); // Check the entire standalone script, including event handlers.
+const core=script.slice(0,script.indexOf("function eventCell("));
+const ctx=vm.createContext({console});vm.runInContext(core,ctx);
+let count=0;
+function test(name,code){vm.runInContext(`state={format:'alchemy-level',version:1,sceneName:'Test',gridSize:{x:3,y:3},spacing:{x:2.5,y:1.8},origin:{x:-2.5,y:1.8,z:0},nodes:[],paths:[],layouts:[{starts:[]}],selectedLayout:0,assets:{nodePrefab:'Assets/Prefabs/Building.prefab',pathPrefab:'Assets/Prefabs/Path.prefab',visualConfig:'Assets/Config/VisualConfig.asset',gameSettings:'Assets/Config/Normal Game Settings.asset',templateScene:'Assets/Scenes/Levels/Game_3x3.unity'}};`,ctx);code();count++;console.log('PASS '+name);}
+const run=s=>vm.runInContext(s,ctx);
+const nodes="state.nodes=[{x:0,y:0,offset:{x:0,y:0,z:0}},{x:2,y:2,offset:{x:.5,y:-1,z:0}}];";
+test('empty level schema round-trips',()=>assert.equal(run('valid(JSON.parse(JSON.stringify(state))).version'),1));
+test('arbitrary long diagonal connection',()=>{run(nodes+"togglePath({x:0,y:0},{x:2,y:2});valid(state)");assert.equal(run('state.paths.length'),1);});
+test('reverse connection toggles, no duplicate',()=>{run(nodes+"togglePath({x:0,y:0},{x:2,y:2});togglePath({x:2,y:2},{x:0,y:0});");assert.equal(run('state.paths.length'),0);});
+test('self connection prevented',()=>{run(nodes+'togglePath(state.nodes[0],state.nodes[0])');assert.equal(run('state.paths.length'),0);});
+test('player 4 keeps empty earlier player slots',()=>{run(nodes+'assign({x:2,y:2},4);valid(state)');assert.equal(run('state.layouts[0].starts.length'),4);assert.equal(run('team({x:2,y:2})'),4);assert.equal(run('state.layouts[0].starts[0].x'),-1);});
+test('reassigning a player moves its start',()=>{run(nodes+'assign({x:0,y:0},2);assign({x:2,y:2},2);valid(state)');assert.equal(run('team({x:0,y:0})'),0);assert.equal(run('team({x:2,y:2})'),2);});
+test('deleting a building removes paths, preserves player numbering',()=>{run(nodes+'assign({x:0,y:0},1);assign({x:2,y:2},4);togglePath({x:0,y:0},{x:2,y:2});remove({x:0,y:0});valid(state)');assert.equal(run('state.paths.length'),0);assert.equal(run('team({x:2,y:2})'),4);});
+test('layouts remain independent',()=>{run(nodes+'assign({x:0,y:0},1);state.layouts.push({starts:[]});state.selectedLayout=1;assign({x:2,y:2},2);valid(state)');assert.equal(run('state.layouts[0].starts[0].x'),0);assert.equal(run('team({x:0,y:0})'),0);});
+test('world-position basis uses positive grid Y downward',()=>{run(nodes);assert.equal(run('gridPosition({x:2,y:2}).y'),-1.8);});
+for(const [name,code] of [['bad version','state.version=2'],['duplicate nodes',nodes+'state.nodes.push(clone(state.nodes[0]))'],['missing endpoint',nodes+'state.paths.push({a:{x:0,y:0},b:{x:1,y:1}})'],['NaN offset',nodes+'state.nodes[0].offset.x=NaN'],['zero spacing','state.spacing.x=0'],['no layouts','state.layouts=[]'],['out-of-bounds node',nodes+'state.nodes[0].x=100'],['invalid asset path',"state.assets.nodePrefab='../secret'"]])test('reject '+name,()=>assert.throws(()=>run(code+';valid(state)')));
+test('decimal offsets move the preview in world-unit scale',()=>{run(nodes+'state.nodes[0].offset={x:1.25,y:.45,z:0}');assert.equal(run('previewGeometry(state,64).center({x:0,y:0}).x'),80);assert.equal(run('previewGeometry(state,64).center({x:0,y:0}).y'),35.2);});
+test('negative offsets expand preview bounds instead of clipping',()=>{run(nodes+'state.nodes[0].offset={x:-20,y:20,z:0}');assert.ok(run('previewGeometry(state,64).center({x:0,y:0}).x')>=35.19);assert.ok(run('previewGeometry(state,64).center({x:0,y:0}).y')>=35.19);});
+test('reset returns preview to original cell',()=>{run(nodes+'state.nodes[0].offset={x:0,y:0,z:0}');assert.equal(run('previewGeometry(state,64).center({x:0,y:0}).x'),48);assert.equal(run('previewGeometry(state,64).center({x:0,y:0}).y'),48);});
+test('double-click building toggle adds and removes a building',()=>{run('toggleBuilding({x:1,y:1});valid(state)');assert.equal(run('state.nodes.length'),1);run('toggleBuilding({x:1,y:1});valid(state)');assert.equal(run('state.nodes.length'),0);});
+test('row expansion adds empty cells',()=>{run(nodes+'resizeGrid(3,4);valid(state)');assert.equal(run('state.gridSize.y'),4);assert.equal(run('state.nodes.length'),2);});
+test('removing last row cleans paths and preserves player slots',()=>{run(nodes+'assign({x:2,y:2},4);togglePath({x:0,y:0},{x:2,y:2});resizeGrid(3,2);valid(state)');assert.equal(run('state.paths.length'),0);assert.equal(run('state.nodes.length'),1);assert.equal(run('state.layouts[0].starts[3].x'),-1);});
+test('populate adds buildings only in new rows and columns',()=>{run(nodes+'resizeGrid(4,4,true);valid(state)');assert.equal(run('state.nodes.length'),9);assert.equal(run('!!at({x:1,y:1})'),false);assert.equal(run('at({x:3,y:3}).offset.x'),0);assert.equal(run('state.paths.length'),0);});
+test('populate supports shrinking one axis while expanding the other',()=>{run(nodes+'resizeGrid(2,4,true);valid(state)');assert.equal(run('state.nodes.length'),3);assert.equal(run('!!at({x:2,y:2})'),false);assert.equal(run('!!at({x:1,y:3})'),true);});
+test('populate does not fill existing holes on unchanged size',()=>{run(nodes+'resizeGrid(3,3,true);valid(state)');assert.equal(run('state.nodes.length'),2);});
+test('neighbour connections use four directions with no duplicates',()=>{run('state.nodes=[];for(let y=0;y<3;y++)for(let x=0;x<3;x++)toggleBuilding({x,y});connectNeighbours();connectNeighbours();valid(state)');assert.equal(run('state.paths.length'),12);});
+test('neighbour connections skip gaps and diagonals',()=>{run(nodes+'connectNeighbours();valid(state)');assert.equal(run('state.paths.length'),0);});
+test('neighbour connections preserve custom paths',()=>{run(nodes+'togglePath({x:0,y:0},{x:2,y:2});toggleBuilding({x:1,y:0});connectNeighbours();valid(state)');assert.equal(run('state.paths.length'),2);});
+test('export blocks an empty level with repair instructions',()=>{assert.ok(run('exportIssues(state).some(i=>i.error&&i.title.includes("no buildings")&&i.fix.includes("Double-click"))'));});
+test('export checks missing player slots in every layout',()=>{run(nodes+'assign({x:0,y:0},1);state.layouts.push({starts:[{x:-1,y:-1},{x:2,y:2}]});');assert.ok(run('exportIssues(state).some(i=>i.error&&i.title.includes("Layout 1")&&i.title.includes("Player 1"))'));});
+const four="toggleBuilding({x:0,y:0});toggleBuilding({x:1,y:0});toggleBuilding({x:1,y:1});toggleBuilding({x:2,y:1});assign({x:0,y:0},1);assign({x:1,y:0},2);assign({x:1,y:1},3);assign({x:2,y:1},4);";
+test('export warns about disconnected groups with four valid starts',()=>{run(four);assert.equal(run('exportIssues(state).filter(i=>i.error).length'),0);assert.ok(run('exportIssues(state).some(i=>!i.error&&i.title.includes("disconnected"))'));});
+test('complete connected four-player level exports without a modal',()=>{run(four+'connectNeighbours();');assert.equal(run('exportIssues(state).length'),0);});
+test('export requires players 3 and 4 even when their slots never existed',()=>{run(nodes+'assign({x:0,y:0},1);assign({x:2,y:2},2);');assert.ok(run('exportIssues(state).some(i=>i.error&&i.title.includes("Player 3, 4"))'));});
+test('export rejects unassigned fourth player',()=>{run(four+'state.layouts[0].starts[3]={x:-1,y:-1};');assert.ok(run('exportIssues(state).some(i=>i.error&&i.title.includes("Player 4"))'));});
+test('every layout requires four starts',()=>{run(four+'state.layouts.push({starts:[{x:0,y:0}]});');assert.ok(run('exportIssues(state).some(i=>i.error&&i.title.includes("Layout 1")&&i.title.includes("Player 2, 3, 4"))'));});
+console.log(`${count} tests passed`);

@@ -1,0 +1,202 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"><meta name="theme-color" content="#252525"><title>Alchemy Level Editor</title>
+<style>
+:root{color-scheme:dark;font:15px system-ui,sans-serif;background:#202020;color:#eee}*{box-sizing:border-box}body{margin:0}main{max-width:1100px;margin:auto;padding:16px;padding-bottom:max(20px,env(safe-area-inset-bottom))}h1{font-size:20px;margin:0 0 16px}h2{font-size:16px;margin:0 0 12px}.bar,.row{display:flex;align-items:center;gap:8px;flex-wrap:wrap}.bar{margin-bottom:14px}.spacer{flex:1}button,input,select,textarea{font:inherit;border:1px solid #666;border-radius:5px;background:#383838;color:#eee}button{min-height:44px;min-width:44px;padding:8px 14px;cursor:pointer;touch-action:manipulation}button:hover{background:#484848}button:disabled{opacity:.4;cursor:default}button[aria-pressed=true],button.primary{background:#a75c0b;border-color:#f0a53a}input,select{min-height:44px;padding:8px;max-width:100%}input[type=number]{width:96px;flex-shrink:0}input[type=checkbox]{min-height:24px;width:24px}input[type=range]{width:150px}label{display:flex;align-items:center;gap:8px}label.stack{align-items:stretch;flex-direction:column;gap:5px}#sceneName{width:250px}details{border:1px solid #555;border-radius:6px;padding:12px;margin:12px 0}summary{cursor:pointer;min-height:30px}details[open] summary{margin-bottom:12px}.settings{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}.settings input[type=text]{width:100%}.work{display:grid;grid-template-columns:minmax(0,1fr) 290px;gap:16px;margin:14px 0}.viewport{overflow:auto;background:#181818;border:1px solid #555;border-radius:6px;height:440px;overscroll-behavior:contain;touch-action:pan-x pan-y}#grid{position:relative;isolation:isolate}#lines{position:absolute;inset:0;pointer-events:none;z-index:-1}.cell{position:absolute;border-radius:2px;border:1px solid #999;padding:0;min-width:0;min-height:0;font-weight:700;font-size:18px;display:grid;place-items:center;color:#fff}.cell.empty{border:1px dashed #666;background:#292929}.cell.selected{outline:3px solid #ff9b18;outline-offset:1px}.cell.source{outline:3px solid #36dfec;outline-offset:1px}aside{border:1px solid #555;border-radius:6px;padding:16px;display:flex;flex-direction:column;gap:14px;align-self:start}aside .row{flex-wrap:nowrap}aside input[type=number]{width:94px}#warnings{white-space:pre-line;color:#f3c67b;font-size:14px}#notice{min-height:24px;color:#f3c67b}#hint{color:#bbb;font-size:14px;margin-top:12px}.transfer{display:none}.transfer.open{display:block}textarea{display:block;width:100%;height:220px;padding:12px;margin:12px 0;resize:vertical}button:focus-visible,input:focus-visible,select:focus-visible{outline:3px solid #90caff;outline-offset:2px}.danger{color:#ffbcb5}.subtitle{font-size:13px;color:#bbb}fieldset{border:0;margin:0;padding:0;min-width:0}
+@media(max-width:700px){main{padding:12px}h1{font-size:18px}.work{grid-template-columns:1fr;gap:12px}.viewport{height:340px}aside{gap:12px}.settings{grid-template-columns:1fr}#sceneName{width:100%}.scene{width:100%}.bar{gap:8px}.spacer{display:none}#apply{flex:1;min-width:170px}.layout-title{width:100%}#zoom{flex:1}aside .row{justify-content:flex-start}.mobile-note{display:block}.transfer .row button{flex:1}#export{flex:1 0 100%;min-width:180px}.viewport{max-height:48dvh}}
+.cell{touch-action:none;user-select:none;-webkit-user-select:none}.edge-controls{position:absolute;display:flex;gap:8px}.edge-controls.rows{flex-direction:column}.edge-controls button{width:44px;height:44px;padding:0;font-size:24px}.edge-controls button.confirm{font-size:12px;color:#ffbcb5}.drag-source{outline:3px solid #36dfec!important}
+#hint{margin:0 0 20px;line-height:1.5}#hint ul{margin:8px 0 0;padding-left:22px}#hint li{margin-bottom:5px}.transfer-actions{margin-top:20px}
+#hint summary{font-weight:600}dialog{background:#252525;color:#eee;border:1px solid #666;border-radius:12px;width:min(560px,calc(100% - 24px));max-height:85dvh;padding:0}dialog::backdrop{background:rgba(0,0,0,.7)}.welcome-body{padding:22px;overflow:auto;max-height:85dvh;line-height:1.5}.welcome-body ul{padding-left:22px}.welcome-body li{margin-bottom:10px}#dismissWelcome{width:100%;margin-top:12px}
+#help{background:#1769c2;border-color:#4599ef;color:#fff}#help:hover{background:#12549d}</style></head><body><main>
+<h1>Alchemy Level Editor <span class="subtitle">HTML</span></h1>
+<div class="bar"><button id="help" type="button" aria-haspopup="dialog" aria-controls="welcome">Help</button></div>
+<div class="bar"><label class="scene stack">Scene name<input id="sceneName" type="text" maxlength="100" value="NewLevel" autocomplete="off"></label><span class="spacer"></span><button id="undo">Undo</button><button id="redo">Redo</button></div>
+<div class="bar"><label><input id="populateNewCells" type="checkbox">Create buildings in new cells</label><label><input id="connectNeighbours" type="checkbox">Connect buildings to neighbours</label></div>
+<div class="bar"><span id="layoutTitle" class="layout-title"></span><button id="prev" aria-label="Previous starting layout">←</button><button id="next" aria-label="Next starting layout">→</button><button id="addLayout">Add</button><button id="deleteLayout">Delete</button></div>
+<div id="notice" role="status" aria-live="polite"></div>
+<div class="work"><div class="viewport" id="viewport"><div id="grid" role="group" aria-label="Level grid"><svg id="lines" aria-hidden="true"></svg></div></div><aside><h2 id="selectedTitle">Selected cell (0, 0)</h2><label>Has Building<input id="hasBuilding" type="checkbox"></label><fieldset id="buildingDetails"><label class="stack">Starting Team<select id="team"><option value="0">None</option><option value="1">Player 1</option><option value="2">Player 2</option><option value="3">Player 3</option><option value="4">Player 4</option></select></label></fieldset><div id="warnings"></div></aside></div>
+<div class="bar transfer-actions"><button id="loadToggle">Load JSON</button><button class="primary" id="export">Export to Clipboard</button></div>
+<section id="transfer" class="transfer"><h2>Level JSON</h2><p class="subtitle">Paste an export to continue editing, or copy this text into Unity’s Level Editor → Import tab.</p><textarea id="jsonText" aria-label="Level JSON" spellcheck="false"></textarea><div class="row"><button id="loadJson">Load into Editor</button><button id="selectJson">Select All Text</button><button id="closeTransfer">Close</button></div></section>
+<dialog id="welcome" aria-labelledby="welcomeTitle"><div class="welcome-body"><h2 id="welcomeTitle">How to use the Level Editor</h2><div id="welcomeInstructions"><ul><li>Tap a cell to select it and choose its starting team. Double-click or double-tap to add or remove a building.</li><li>Drag between two buildings to add or remove their path. Press Escape to cancel a drag.</li><li>Use +/− on the right for columns and at the bottom for rows. Removing occupied cells needs a second press to confirm.</li><li>Enable “Create buildings in new cells” to fill added rows or columns; otherwise they start empty.</li><li>Enable “Connect buildings to neighbours” to add paths between immediate horizontal and vertical neighbours, including newly added buildings. Empty cells are skipped. Turning it off keeps existing paths.</li><li>Every layout needs four distinct starting buildings, assigned to Players 1–4. Use the layout arrows to switch player-start arrangements. Add creates a layout; Delete removes the current one.</li><li>Swipe empty space to scroll. Use Undo/Redo to reverse edits.</li><li>When finished, Export to Clipboard, then paste into Unity’s Level Editor → Import tab. Load JSON resumes an exported level.</li></ul></div><button id="dismissWelcome" class="primary" autofocus>Got it</button></div></dialog>
+<dialog id="exportValidation" aria-labelledby="validationTitle"><div class="welcome-body"><h2 id="validationTitle">Check your level</h2><p id="validationSummary"></p><ul id="validationIssues"></ul><div class="row"><button id="fixLevel" class="primary" autofocus>Back to Editor</button><button id="exportAnyway">Export Anyway</button></div></div></dialog>
+</main><script>
+'use strict';
+const $=id=>document.getElementById(id), colors=['#808080','#e64d40','#4099ff','#4dcc66','#ffcc33'];
+const clone=x=>JSON.parse(JSON.stringify(x)), key=c=>`${c.x},${c.y}`, same=(a,b)=>a.x===b.x&&a.y===b.y, none=()=>({x:-1,y:-1});
+let state={format:'alchemy-level',version:1,sceneName:'NewLevel',gridSize:{x:3,y:3},spacing:{x:2.5,y:1.8},origin:{x:-2.5,y:1.8,z:0},nodes:[],paths:[],layouts:[{starts:[]}],selectedLayout:0,assets:{nodePrefab:'Assets/Prefabs/Building.prefab',pathPrefab:'Assets/Prefabs/Path.prefab',visualConfig:'Assets/Config/VisualConfig.asset',gameSettings:'Assets/Config/Normal Game Settings.asset',templateScene:'Assets/Scenes/Levels/Game_3x3.unity'}};
+let selected={x:0,y:0},source=null,zoom=1,history=[],future=[],confirmed=null;
+let gesture=null,lastTap=null,suppressClickUntil=0;
+function at(c){return state.nodes.find(n=>same(n,c));}
+function team(c){return (state.layouts[state.selectedLayout]?.starts||[]).findIndex(p=>same(p,c))+1;}
+function gridPosition(c){return {x:state.origin.x+c.x*state.spacing.x,y:state.origin.y-c.y*state.spacing.y,z:state.origin.z};}
+function change(fn){history.push(clone(state));if(history.length>100)history.shift();future=[];const previousCells=new Set(state.nodes.map(key));fn();if($('connectNeighbours').checked&&state.nodes.some(n=>!previousCells.has(key(n))))connectNeighbours();source=null;confirmed=null;save();render();}
+function save(){try{localStorage.setItem('alchemy-level-v1',JSON.stringify(state));}catch{}}
+function say(text){$('notice').textContent=text;}
+function remove(c){state.nodes=state.nodes.filter(n=>!same(n,c));state.paths=state.paths.filter(p=>!same(p.a,c)&&!same(p.b,c));for(const l of state.layouts)l.starts=l.starts.map(p=>same(p,c)?none():p);}
+function togglePath(a,b){if(same(a,b))return;const i=state.paths.findIndex(p=>same(p.a,a)&&same(p.b,b)||same(p.a,b)&&same(p.b,a));if(i>=0)state.paths.splice(i,1);else state.paths.push({a:{x:a.x,y:a.y},b:{x:b.x,y:b.y}});}
+function toggleBuilding(c){if(at(c))remove(c);else state.nodes.push({...c,offset:{x:0,y:0,z:0}});}
+function resizeGrid(x,y,populate=false){
+const previous={...state.gridSize};
+for(const c of state.nodes.filter(n=>n.x>=x||n.y>=y))remove(c);
+if(populate)for(let row=0;row<y;row++)for(let col=0;col<x;col++)if(col>=previous.x||row>=previous.y)state.nodes.push({x:col,y:row,offset:{x:0,y:0,z:0}});
+state.gridSize={x,y};
+}
+function applyGridSize(x,y){
+if(!Number.isInteger(x)||!Number.isInteger(y)||x<1||y<1||x>100||y>100)return say('Grid dimensions must be whole numbers from 1 to 100.');
+const removed=state.nodes.filter(n=>n.x>=x||n.y>=y);
+if(removed.length&&(!confirmed||confirmed.x!==x||confirmed.y!==y)){confirmed={x,y,count:removed.length};say(`Remove ${removed.length} buildings and their paths? Press the same minus button again to confirm.`);render();return;}
+change(()=>resizeGrid(x,y,$('populateNewCells').checked));say('Grid size updated.');
+}
+function edgeControls(grid,geometry){
+grid.querySelectorAll('.edge-controls').forEach(e=>e.remove());
+for(const [axis,caption]of [['y','Row'],['x','Column']]){
+const row=document.createElement('div');row.className='edge-controls '+(axis==='x'?'rows':'columns');
+row.style.left=(axis==='x'?geometry.width+4:Math.max(16,geometry.width/2-48))+'px';row.style.top=(axis==='x'?Math.max(16,geometry.height/2-48):geometry.height+4)+'px';
+for(const delta of [1,-1]){const b=document.createElement('button'),size={...state.gridSize};size[axis]+=delta;const isConfirm=confirmed&&confirmed.x===size.x&&confirmed.y===size.y;b.textContent=isConfirm?'Sure?':delta===1?'+':'−';if(isConfirm)b.classList.add('confirm');b.title=(delta===1?'Add ':'Remove ')+caption;b.setAttribute('aria-label',b.title+(isConfirm?' — confirm removal':''));b.disabled=size[axis]<1||size[axis]>100;b.onclick=()=>applyGridSize(size.x,size.y);row.append(b);}grid.append(row);
+}
+}
+function connectNeighbours(){
+const buildings=new Set(state.nodes.map(key));
+const pair=(a,b)=>[key(a),key(b)].sort().join(':');
+const existing=new Set(state.paths.map(p=>pair(p.a,p.b)));
+for(const a of state.nodes)for(const [dx,dy]of [[1,0],[0,1]]){
+const b={x:a.x+dx,y:a.y+dy};
+if(!buildings.has(key(b)))continue;
+const id=pair(a,b);if(existing.has(id))continue;
+state.paths.push({a:{x:a.x,y:a.y},b});existing.add(id);
+}
+}
+function assign(c,t){const starts=state.layouts[state.selectedLayout].starts;for(let i=0;i<starts.length;i++)if(same(starts[i],c))starts[i]=none();if(t){while(starts.length<t)starts.push(none());starts[t-1]={x:c.x,y:c.y};}}
+function clickCell(c,pathMode){selected=c;if(pathMode){if(!at(c)){source=null;say('Choose two occupied cells.');}else if(!source){source=c;say(`Connect from (${c.x}, ${c.y}): choose another building.`);}else{const from=source;change(()=>togglePath(from,c));say('Connection updated.');}}render();}
+function valid(d){
+const req=(ok,msg)=>{if(!ok)throw Error(msg);},num=n=>typeof n==='number'&&Number.isFinite(n)&&Math.abs(n)<=100000,coord=c=>c&&Number.isInteger(c.x)&&Number.isInteger(c.y),vec=v=>v&&num(v.x)&&num(v.y)&&num(v.z);
+req(d&&d.format==='alchemy-level'&&d.version===1,'Expected Alchemy level JSON, version 1.');req(typeof d.sceneName==='string'&&d.sceneName.trim()&&d.sceneName.length<=100&&!/[<>:"/\\|?*\x00-\x1f]/.test(d.sceneName),'Enter a valid scene filename.');req(coord(d.gridSize)&&d.gridSize.x>=1&&d.gridSize.x<=100&&d.gridSize.y>=1&&d.gridSize.y<=100,'Grid dimensions must be 1–100.');req(vec(d.origin)&&d.spacing&&num(d.spacing.x)&&num(d.spacing.y)&&Math.abs(d.spacing.x)>.0001&&Math.abs(d.spacing.y)>.0001,'Origin must be finite; spacing must be finite and non-zero.');req(Array.isArray(d.nodes)&&d.nodes.length<=10000&&Array.isArray(d.paths)&&d.paths.length<=50000,'Invalid nodes or paths.');
+const cells=new Set;for(const n of d.nodes){req(coord(n)&&n.x>=0&&n.y>=0&&n.x<d.gridSize.x&&n.y<d.gridSize.y&&vec(n.offset),'Invalid building coordinate or offset.');req(!cells.has(key(n)),'Duplicate building coordinates.');cells.add(key(n));}
+const pairs=new Set;for(const p of d.paths){req(p&&coord(p.a)&&coord(p.b)&&cells.has(key(p.a))&&cells.has(key(p.b))&&!same(p.a,p.b),'Invalid path endpoints.');const k=[key(p.a),key(p.b)].sort().join(':');req(!pairs.has(k),'Duplicate path.');pairs.add(k);}
+req(Array.isArray(d.layouts)&&d.layouts.length>=1&&d.layouts.length<=100&&Number.isInteger(d.selectedLayout)&&d.selectedLayout>=0&&d.selectedLayout<d.layouts.length,'At least one valid starting layout is required.');for(const l of d.layouts){req(l&&Array.isArray(l.starts)&&l.starts.length<=4,'Invalid player starts.');const seen=new Set;for(const c of l.starts){req(coord(c),'Invalid player coordinate.');if(c.x===-1&&c.y===-1)continue;req(cells.has(key(c))&&!seen.has(key(c)),'Player starts must reference distinct buildings.');seen.add(key(c));}}
+req(d.assets&&['nodePrefab','pathPrefab','visualConfig','gameSettings','templateScene'].every(k=>typeof d.assets[k]==='string'&&d.assets[k].startsWith('Assets/')&&!d.assets[k].includes('..')),'Asset paths must start with Assets/.');return d;
+}
+function exportIssues(d){
+const issues=[],add=(title,fix,error=true)=>issues.push({title,fix,error});
+try{valid(d);}catch(e){
+const message=e.message;
+let fix='Load a valid level JSON export or undo the edit that introduced this problem.';
+if(message.includes('filename'))fix='Edit Scene name: use a non-empty name without / \u005c\u005c : * ? " < > |, up to 100 characters.';
+else if(message.includes('layout'))fix='Press Add beside the starting layout index to create a layout, then assign player starts in the building details.';
+else if(message.includes('Player starts'))fix='Switch to each layout, select existing buildings and assign each player to a different building using Starting Team.';
+else if(message.includes('path'))fix='Remove invalid paths or duplicate paths from the loaded JSON, then use Load JSON. Each path must connect two different existing buildings once.';
+else if(message.includes('building')||message.includes('Building'))fix='In the loaded JSON, keep one building per cell, inside the grid bounds, with finite offsets; then load it again.';
+else if(message.includes('Asset'))fix='In the loaded JSON, set all asset paths to existing project paths beginning with Assets/, then load it again. Unity checks whether those assets exist during import.';
+else if(message.includes('Grid')||message.includes('Origin'))fix='Load JSON with grid dimensions between 1 and 100, finite origin values, and non-zero spacing.';
+add(message,fix);
+return issues;
+}
+if(!d.nodes.length)add('The level has no buildings.','Double-click or double-tap cells to add buildings, or enable Create buildings in new cells and expand the grid.');
+for(let i=0;i<d.layouts.length;i++){
+const starts=d.layouts[i].starts;
+const missing=[];
+for(let player=0;player<4;player++)if(!starts[player]||(starts[player].x===-1&&starts[player].y===-1))missing.push(player+1);
+if(missing.length)add(`Layout ${i} is missing Player ${missing.join(', ')} start${missing.length>1?'s':''}.`,`Every layout requires four distinct starting buildings. Select layout ${i} with the arrows, select a separate building for each missing player and set Starting Team to that player (Players 1–4). Add more buildings if necessary.`);
+
+}
+if(d.nodes.length>1){
+const adjacent=new Map(d.nodes.map(n=>[key(n),[]]));for(const p of d.paths){adjacent.get(key(p.a)).push(key(p.b));adjacent.get(key(p.b)).push(key(p.a));}
+const visited=new Set;let groups=0;const examples=[];
+for(const node of d.nodes){const id=key(node);if(visited.has(id))continue;groups++;examples.push(`(${node.x}, ${node.y})`);const queue=[id];visited.add(id);for(let i=0;i<queue.length;i++)for(const neighbour of adjacent.get(queue[i]))if(!visited.has(neighbour)){visited.add(neighbour);queue.push(neighbour);}}
+if(groups>1)add(`Buildings form ${groups} disconnected groups (for example ${examples.slice(0,4).join(', ')}).`,'Drag paths between buildings in different groups until all buildings are reachable. Connect buildings to neighbours can fill adjacent paths, but cannot bridge empty cells. Export anyway only if disconnected groups are intentional.',false);
+}
+return issues;
+}
+function warnings(){const out=[];if(!state.layouts.length)out.push('Add a starting layout before exporting.');else{const starts=state.layouts[state.selectedLayout].starts;if(!starts.length||starts.some(p=>p.x===-1&&p.y===-1))out.push('Some player starts are unassigned.');}
+if(state.nodes.length>1){const reached=new Set([key(state.nodes[0])]);let changed;do{changed=false;for(const p of state.paths){if(reached.has(key(p.a))&&!reached.has(key(p.b))){reached.add(key(p.b));changed=true;}if(reached.has(key(p.b))&&!reached.has(key(p.a))){reached.add(key(p.a));changed=true;}}}while(changed);if(reached.size!==state.nodes.length)out.push('The level contains disconnected groups of buildings.');}return out.join('\n');}
+function previewGeometry(data,step){
+const half=step*.3, centers=new Map(data.nodes.map(n=>[key(n),{x:16+(n.x+.5)*step+n.offset.x/data.spacing.x*step,y:16+(n.y+.5)*step-n.offset.y/data.spacing.y*step}]));
+let minX=16,minY=16,maxX=16+data.gridSize.x*step,maxY=16+data.gridSize.y*step;
+for(const p of centers.values()){minX=Math.min(minX,p.x-half);minY=Math.min(minY,p.y-half);maxX=Math.max(maxX,p.x+half);maxY=Math.max(maxY,p.y+half);}
+const shift={x:16-minX,y:16-minY};
+return {centers,shift,width:maxX+shift.x+16,height:maxY+shift.y+16,center(c){const p=centers.get(key(c))||{x:16+(c.x+.5)*step,y:16+(c.y+.5)*step};return {x:p.x+shift.x,y:p.y+shift.y};}};
+}
+function render(){
+selected.x=Math.min(selected.x,state.gridSize.x-1);selected.y=Math.min(selected.y,state.gridSize.y-1);
+$('sceneName').value=state.sceneName;$('undo').disabled=!history.length;$('redo').disabled=!future.length;$('layoutTitle').textContent=`Starting layout index: ${state.layouts.length?state.selectedLayout:'None'}`;$('prev').disabled=!state.layouts.length||state.selectedLayout===0;$('next').disabled=state.selectedLayout>=state.layouts.length-1;$('deleteLayout').disabled=!state.layouts.length;$('addLayout').disabled=state.layouts.length>=100;
+const n=at(selected);$('selectedTitle').textContent=`Selected cell (${selected.x}, ${selected.y})`;$('hasBuilding').checked=!!n;$('buildingDetails').disabled=!n;$('team').disabled=!state.layouts.length;$('team').value=team(selected);$('warnings').textContent=warnings();
+const step=(window.matchMedia('(max-width:700px)').matches?80:64)*zoom,geometry=previewGeometry(state,step),grid=$('grid');grid.style.width=(geometry.width+64)+'px';grid.style.height=(geometry.height+64)+'px';grid.querySelectorAll('.cell').forEach(e=>e.remove());const svg=$('lines');svg.setAttribute('width',geometry.width);svg.setAttribute('height',geometry.height);svg.replaceChildren();
+for(const p of state.paths){const line=document.createElementNS('http://www.w3.org/2000/svg','line');for(const [name,c]of [['1',p.a],['2',p.b]]){const center=geometry.center(c);line.setAttribute('x'+name,center.x);line.setAttribute('y'+name,center.y);}line.setAttribute('stroke','#4da6e6');line.setAttribute('stroke-width','2');svg.append(line);}
+const occupied=new Set(state.nodes.map(key));const teams=new Map((state.layouts[state.selectedLayout]?.starts||[]).map((c,i)=>[key(c),i+1]));
+for(let y=0;y<state.gridSize.y;y++)for(let x=0;x<state.gridSize.x;x++){const c={x,y},has=occupied.has(key(c)),t=teams.get(key(c))||0,b=document.createElement('button');b.className='cell'+(!has?' empty':'')+(same(c,selected)?' selected':'')+(source&&same(source,c)?' source':'');const center=geometry.center(c);b.style.cssText=`left:${center.x-step*.3}px;top:${center.y-step*.3}px;width:${step*.6}px;height:${step*.6}px;${has?'background:'+colors[t]+';':''}`;b.textContent=has&&t?t:'';if(t===3||t===4)b.style.color='#111';b.setAttribute('aria-label',`Cell ${x}, ${y}: ${has?'building, team '+t:'empty'}`);b.setAttribute('aria-pressed',String(same(c,selected)));b.dataset.x=x;b.dataset.y=y;grid.append(b);}
+edgeControls(grid,geometry);
+}
+function eventCell(target){const b=target?.closest?.('.cell');return b?{x:+b.dataset.x,y:+b.dataset.y}:null;}
+const gridElement=$('grid');
+function activateCell(c){
+const now=performance.now();if(lastTap&&same(lastTap.cell,c)&&now-lastTap.time<350){lastTap=null;selected=c;change(()=>toggleBuilding(c));say('Building toggled.');}else{lastTap={cell:c,time:now};clickCell(c,false);}
+}
+gridElement.addEventListener('click',e=>{
+const c=eventCell(e.target);if(!c)return;
+// Pointer taps are handled on release because capture retargets native clicks to the grid.
+if(e.detail===0&&performance.now()>=suppressClickUntil)activateCell(c);
+});
+gridElement.addEventListener('contextmenu',e=>{const c=eventCell(e.target);if(!c)return;e.preventDefault();lastTap=null;clickCell(c,true);});
+gridElement.addEventListener('pointerdown',e=>{
+const c=eventCell(e.target);if(!c||e.button!==0||gesture)return;
+gesture={cell:c,id:e.pointerId,x:e.clientX,y:e.clientY,dragged:false,canConnect:!!at(c)};
+gridElement.setPointerCapture(e.pointerId);
+});
+gridElement.addEventListener('pointermove',e=>{
+if(!gesture||e.pointerId!==gesture.id)return;
+if(Math.hypot(e.clientX-gesture.x,e.clientY-gesture.y)>8)gesture.dragged=true;
+if(!gesture.dragged||!gesture.canConnect)return;
+const svg=$('lines');let line=svg.querySelector('.drag-preview');if(!line){line=document.createElementNS('http://www.w3.org/2000/svg','line');line.classList.add('drag-preview');line.setAttribute('stroke','#36dfec');line.setAttribute('stroke-width','3');line.setAttribute('stroke-dasharray','6 4');svg.append(line);}
+const start=gridElement.querySelector(`.cell[data-x="${gesture.cell.x}"][data-y="${gesture.cell.y}"]`),box=gridElement.getBoundingClientRect(),rect=start.getBoundingClientRect();
+line.setAttribute('x1',rect.left+rect.width/2-box.left);line.setAttribute('y1',rect.top+rect.height/2-box.top);line.setAttribute('x2',e.clientX-box.left);line.setAttribute('y2',e.clientY-box.top);start.classList.add('drag-source');
+});
+function endGesture(e,cancel=false){
+if(!gesture||gesture.id!==e.pointerId)return;
+const g=gesture;gesture=null;gridElement.querySelector('.drag-preview')?.remove();gridElement.querySelector('.drag-source')?.classList.remove('drag-source');
+if(gridElement.hasPointerCapture(g.id))gridElement.releasePointerCapture(g.id);
+if(!g.dragged){if(!cancel)activateCell(g.cell);return;}
+suppressClickUntil=performance.now()+450;lastTap=null;
+if(cancel)return;
+const destination=eventCell(document.elementFromPoint(e.clientX,e.clientY));
+if(g.canConnect&&destination&&at(destination)&&!same(g.cell,destination)){selected=destination;change(()=>togglePath(g.cell,destination));say('Connection toggled.');}else say('Drag from one building to another to toggle a path.');
+}
+gridElement.addEventListener('pointerup',e=>endGesture(e));gridElement.addEventListener('pointercancel',e=>endGesture(e,true));
+gridElement.addEventListener('lostpointercapture',e=>{if(gesture?.id===e.pointerId)endGesture(e,true);});
+$('sceneName').onchange=()=>change(()=>{state.sceneName=$('sceneName').value;});
+$('connectNeighbours').onchange=()=>{if($('connectNeighbours').checked)change(connectNeighbours);};
+$('hasBuilding').onchange=()=>change(()=>{if($('hasBuilding').checked){if(!at(selected))state.nodes.push({...selected,offset:{x:0,y:0,z:0}});}else remove(selected);});
+$('team').onchange=()=>change(()=>assign(selected,+$('team').value));
+$('prev').onclick=()=>change(()=>state.selectedLayout--);$('next').onclick=()=>change(()=>state.selectedLayout++);$('addLayout').onclick=()=>change(()=>{state.layouts.push({starts:[]});state.selectedLayout=state.layouts.length-1;});$('deleteLayout').onclick=()=>change(()=>{state.layouts.splice(state.selectedLayout,1);state.selectedLayout=Math.max(0,state.selectedLayout-1);});
+$('viewport').addEventListener('wheel',e=>{if(!e.ctrlKey)return;e.preventDefault();zoom=Math.max(.4,Math.min(2,zoom-e.deltaY*.002));render();},{passive:false});
+$('undo').onclick=()=>{if(!history.length)return;future.push(clone(state));state=history.pop();source=null;confirmed=null;save();render();};$('redo').onclick=()=>{if(!future.length)return;history.push(clone(state));state=future.pop();source=null;confirmed=null;save();render();};
+document.addEventListener('keydown',e=>{if(e.key==='Escape'){if(gesture)endGesture({pointerId:gesture.id},true);source=null;lastTap=null;render();}if((e.ctrlKey||e.metaKey)&&!['INPUT','TEXTAREA','SELECT'].includes(document.activeElement.tagName)){if(e.key.toLowerCase()==='z'){e.preventDefault();$(e.shiftKey?'redo':'undo').click();}if(e.key.toLowerCase()==='y'){e.preventDefault();$('redo').click();}}});
+function transfer(){$('transfer').classList.add('open');$('jsonText').scrollIntoView({behavior:'smooth',block:'center'});}
+$('loadToggle').onclick=()=>{transfer();$('jsonText').focus();};$('closeTransfer').onclick=()=>$('transfer').classList.remove('open');$('selectJson').onclick=()=>{$('jsonText').focus();$('jsonText').select();};
+async function copyExport(){try{valid(state);const text=JSON.stringify(state,null,2);$('jsonText').value=text;try{if(navigator.clipboard?.writeText){await navigator.clipboard.writeText(text);say('Copied. In Unity, open Level Editor → Import and paste.');return;}}catch{}transfer();$('jsonText').focus();$('jsonText').select();let copied=false;try{copied=document.execCommand('copy');}catch{}say(copied?'Copied. Paste in Unity’s Import tab.':'Clipboard unavailable here. Select All Text, then use your phone’s Copy command.');}catch(e){say(e.message);}}
+const validationModal=$('exportValidation');
+$('fixLevel').onclick=()=>validationModal.close();
+$('exportAnyway').onclick=()=>{validationModal.close();copyExport();};
+$('export').onclick=()=>{
+const issues=exportIssues(state);if(!issues.length){copyExport();return;}
+const errors=issues.filter(i=>i.error).length;
+$('validationSummary').textContent=errors?`Fix ${errors} problem${errors===1?'':'s'} before exporting. Your level has not been copied.`:'Review these warnings before exporting. You can export anyway if they are intentional.';
+$('validationIssues').replaceChildren();
+for(const issue of issues){const li=document.createElement('li'),title=document.createElement('strong'),fix=document.createElement('p');title.textContent=(issue.error?'Fix required: ':'Warning: ')+issue.title;fix.textContent=issue.fix;li.append(title,fix);$('validationIssues').append(li);}
+$('exportAnyway').hidden=errors>0;
+validationModal.showModal();
+};
+$('loadJson').onclick=()=>{try{const text=$('jsonText').value;if(text.length>5000000)throw Error('Maximum JSON size is 5 MB.');const data=valid(JSON.parse(text));change(()=>{state=clone(data);selected={x:0,y:0};});say('Level loaded.');$('transfer').classList.remove('open');}catch(e){say('Cannot load: '+e.message);}};
+const welcome=$('welcome');
+function rememberWelcome(){try{localStorage.setItem('alchemy-level-welcome-seen','1');}catch{}}
+$('help').onclick=()=>welcome.showModal();
+$('dismissWelcome').onclick=()=>welcome.close();
+welcome.addEventListener('close',rememberWelcome);
+welcome.addEventListener('cancel',rememberWelcome);
+let showWelcome=true;
+try{showWelcome=localStorage.getItem('alchemy-level-welcome-seen')!=='1';}catch{}
+if(showWelcome&&typeof welcome.showModal==='function'){
+welcome.showModal();
+}
+window.addEventListener('resize',()=>render());
+try{const saved=localStorage.getItem('alchemy-level-v1');if(saved)state=valid(JSON.parse(saved));}catch{}render();
+</script></body></html>
+
